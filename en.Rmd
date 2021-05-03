@@ -1,0 +1,433 @@
+---
+params: 
+  title: ""
+  publication_date: ""
+  doi: ""
+output: 
+  html_document:
+    anchor_sections: false
+    theme: null
+    highlight: null
+    mathjax: null
+    css: ["style.css", "https://fonts.googleapis.com/css?family=Source+Sans+Pro:400,700&display=swap"]
+    self_contained: true
+title: "`r params$title`"
+---
+
+```{r general-setup, include=FALSE}
+## This file contains the ENGLISH version of the data story
+
+# Set general chunk options
+knitr::opts_chunk$set(echo = FALSE, fig.showtext = TRUE, fig.retina = 3, 
+                      fig.align = "center", warning = FALSE, message = FALSE)
+
+# Install pacman package if needed
+if (!require("pacman")) {
+  install.packages("pacman")
+  library(pacman)
+}
+
+# Install snf.datastory package if not available, otherwise load it
+if (!require("snf.datastory")) {
+  if (!require("devtools")) {
+    install.packages("devtools")
+    library(devtools)
+  }
+  install_github("snsf-data/snf.datastory")
+  library(snf.datastory)
+}
+# Load packages
+p_load(tidyverse,
+       snf.datastory,
+       lubridate,
+       scales, 
+       conflicted, 
+       jsonlite,
+       readxl,
+       here, 
+       ggiraph)
+
+# Conflict preferences
+conflict_prefer("filter", "dplyr")
+conflict_prefer("get_datastory_scheme", "snf.datastory")
+conflict_prefer("get_datastory_theme", "snf.datastory")
+
+# Increase showtext package font resolution
+showtext_opts(dpi = 320)
+
+# Set the locale for date formatting (Windows)
+Sys.setlocale("LC_TIME", "English")
+
+# Create function to print number with local language-specific format 
+print_num <- function(x) snf.datastory::print_num(x, lang = "en")
+
+# Knitr hook for local formatting of printed numbers
+knitr::knit_hooks$set(
+  inline <- function(x) {
+    if (!is.numeric(x)) {
+      x
+    } else {
+      print_num(x)
+    }
+  }
+)
+```
+
+```{r print-header-infos, results='asis'}
+# Add publication date to header
+cat(format(as_datetime(params$publication_date), "%d.%m.%Y"))
+
+# Register the Google font (same as Data Portal, is not loaded twice)
+cat(paste0("<link href='https://fonts.googleapis.com/css?family=", 
+           "Source+Sans+Pro:400,700&display=swap' rel='stylesheet'>"))
+```
+
+```{r story-specific-setup, include=FALSE}
+# Micro-level ERC grantees
+erc_grantees <- read_csv(here("data", "data.csv"))
+
+# Function for proper ERC call type name formatting and ordering
+format_call_types <- function(data) {
+  data %>%
+    mutate(
+      call_type = case_when(
+        call_type == "StG" ~ "ERC Starting Grant",
+        call_type == "AdG" ~ "ERC Advanced Grant",
+        call_type == "CoG" ~ "ERC Consolidator Grant",
+        call_type == "SyG" ~ "ERC Synergy Grant"
+      ),
+      call_type = fct_relevel(
+        call_type,
+        c(
+          "ERC Starting Grant",
+          "ERC Consolidator Grant",
+          "ERC Advanced Grant",
+          "ERC Synergy Grant"
+        )
+      )
+    )
+}
+
+# Percentage of ERC grantees with SNSF grant(s)
+perc_erc_with_snsf <- erc_grantees %>% 
+  count(had_snsf_grants_before) %>% 
+  mutate(perc = 100 * (n / sum(n))) %>% 
+  filter(had_snsf_grants_before == TRUE) %>% 
+  pull(perc)
+
+# Number of ERC grantees with SNSF grant
+n_erc_with_snsf <- erc_grantees %>% 
+  count(had_snsf_grants_before) %>% 
+  filter(had_snsf_grants_before == TRUE) %>% 
+  pull(n)
+
+# Number of ERC grantees without SNSF grant
+n_erc_without_snsf <- erc_grantees %>% 
+  count(had_snsf_grants_before) %>% 
+  filter(had_snsf_grants_before == FALSE) %>% 
+  pull(n)
+```
+
+__Researchers working in Switzerland are very successful with applications to the European Research Council (ERC). Our analysis shows: By 2019, `r round(perc_erc_with_snsf)`% of these grantees had previously received funding from the SNSF.__
+
+The SNSF is Switzerland’s foremost research funding organisation. Grants from the SNSF’s broad spectrum of funding opportunities support researchers at various stages of their careers.
+
+### Scientific excellence as a shared criterion
+
+The European Research Council (ERC) was founded in 2007. Its aim is to support top researchers from all over the world who want to carry out promising research projects in Europe. ERC grants are highly endowed and coveted. Scientific excellence is the only evaluation criterion of the ERC. This criterion is also at the heart of the SNSF’s evaluation processes.
+
+From 2007 to 2019, the ERC awarded a total of 671 grants to `r nrow(erc_grantees)` scientists for research at Swiss institutions. Compared to the other countries, Switzerland is performing above average.
+
+The funding schemes of the SNSF and the ERC differ to some extent in their eligibility criteria, the type of research projects funded and the selection procedure, which is why they complement each other well. This means that a suitable funding scheme is available for as many types of promising research as possible.
+
+<div class='info-box'>
+
+### ERC funding schemes
+
+* __ERC Starting Grants__: contributions of up to 1.5 million euros for 5 years. For promising young researchers with 2 to 7 years' experience after completing their doctorate.
+
+* __ERC Consolidator Grants__: contributions of up to 2 million euros for 5 years. For excellent researchers with 7 to 12 years of post-doctoral experience.
+
+* __ERC Advanced Grants__: contributions of up to 2.5 million euros for 5 years. For established researchers with a proven track record.
+
+* __ERC Synergy Grants__: contributions of up to 10 million euros for 6 years. To address challenging research questions that can only be answered through the work coordinated by a group of 2-4 investigators.
+
+</div>
+
+### Funding share differs between ERC schemes
+
+Prior to their first ERC grant, `r n_erc_with_snsf` or `r round(perc_erc_with_snsf)`% of researchers working in Switzerland had received at least one SNSF grant from project funding (including Sinergia and NRPs) or advanced career funding. `r n_erc_without_snsf` ERC grantees, or `r round(100 - perc_erc_with_snsf)`%, had not previously been supported by the SNSF. For this group, the analysis of their careers shows that more than half of them had been conducting research in Switzerland for less than two years when they received their first ERC grant. Almost 60% of the `r n_erc_without_snsf` researchers had never submitted an application to the SNSF. A little over 40% had not been successful with their SNSF application. This is an example of how the ERC can complement the SNSF's funding opportunities.
+
+<div class="plot-box">
+<div class="plot-title">Researchers with and without SNSF funding prior to their first ERC grant</div>
+<div class="hide-mobile">
+```{r swiss-erc-grantees-micro-desktop-tablet, out.width="100%", fig.height=5}
+# Define point colors
+grant_avail_colors <- c("With prior SNSF grant" = "#00349E", 
+                        "Without prior SNSF grant" = "#72E3CE")
+
+# Create ggplot graph (desktop & tablet)
+p_observations <- erc_grantees %>%  
+  # Add data id for ggiraph
+  mutate(data_id = row_number()) %>% 
+  # Labelling and order of ERC call types
+  format_call_types() %>% 
+  # Create nicer labels
+  mutate(had_snsf_grants_before = ifelse(had_snsf_grants_before, 
+                                         "With prior SNSF grant",
+                                         "Without prior SNSF grant")) %>% 
+  # Format the funding instruments correctly for the tooltip
+  mutate(snsf_fis = map_chr(snsf_fis, function(x) {
+    if (is.na(x))
+      return(NA)
+    # Generate the tooltip text, disentangle the data
+    str_split(x, "\\|\\|") %>% 
+      map_chr(function(x) {
+        res <- x %>% 
+          str_split(";") %>% 
+          map_chr(function(y) {
+            paste0(y[1], " (", y[2], "): ", str_trunc(y[4], 40))
+          })
+        paste(res, collapse = "<br>")
+      })
+  }),
+  # Newline in call name
+  call_type = fct_relabel(call_type, function(x) {
+    str_replace_all(x, "ERC", "ERC\n")
+  }), 
+  # Create link to P3/Cordis for this person
+  link = ifelse(!is.na(ApplicantNumber), 
+                paste0("http://p3.snf.ch/person-", ApplicantNumber, "-"), 
+                paste0("https://cordis.europa.eu/search?q=contenttype%3D%27", 
+                       "project%27%20AND%20%2Fproject%2Facronym%3D%27", 
+                       project_acronym ,"%27")
+  )) %>%
+  # Hand over to ggplot
+  ggplot(aes(x = call_year, y = fct_rev(call_type),
+             fill = had_snsf_grants_before)) +
+  geom_jitter_interactive(
+    aes(tooltip = paste0("<b>", name, ", ", first_name, "</b><br>",
+                         host_institution, "<br>",
+                         str_replace(call_type, "\\n", " "), " (", call_year,
+                         ") «<b>", project_acronym,
+                         "</b>»<br><br>",
+                         ifelse(snsf_grants_before == 0, "No",
+                                snsf_grants_before),
+                         " prior SNSF ", ifelse(snsf_grants_before <= 1,
+                                                "grant", "grants"),
+                         ifelse(snsf_grants_before > 0, 
+                                paste0(":<br>", snsf_fis
+                                ), "")), 
+        data_id = data_id, 
+        onclick = ifelse(!is.na(link), paste0('window.open("', link , '")'), 
+                         "")),
+    shape = 21, width = 0.3, height = 0.3, colour = "white", size = 2.5, 
+    stroke = 0.2) +
+  get_datastory_theme(remove_plot_margin = TRUE) +
+  scale_x_continuous(breaks = seq(2007, 2020, 1)) +
+  scale_fill_manual(values = grant_avail_colors) +
+  labs(x = NULL, y = NULL) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.text.y = element_text(hjust = 0.5))
+
+# Create ggiraph object
+girafe(ggobj = p_observations, 
+       height_svg = 3.8, 
+       options = list(
+         opts_toolbar(saveaspng = FALSE),
+         opts_hover(css = "fill:#F75858;stroke:#F75858;"),
+         opts_tooltip(
+           css = get_ggiraph_tooltip_css(),
+           opacity = 0.8,
+           delay_mouseover = 0,
+           delay_mouseout = 0
+         )
+       ))
+```
+</div>
+<div class="hide-tablet hide-desktop">
+```{r swiss-erc-grantees-micro-mobile, out.width="100%", fig.width=4, fig.height=6}
+# Create static graph (mobile)
+erc_grantees %>%  
+  # Labelling and order of ERC call types
+  format_call_types() %>% 
+  # Create nicer labels
+  mutate(had_snsf_grants_before = ifelse(had_snsf_grants_before, 
+                                         "With prior SNSF grant",
+                                         "Without prior SNSF grant")) %>% 
+  # Format the funding instruments correctly for the tooltip
+  mutate(snsf_fis = map_chr(snsf_fis, function(x) {
+    if (is.na(x))
+      return(NA)
+    # Generate the tooltip text, disentangle the data
+    str_split(x, "\\|\\|") %>% 
+      map_chr(function(x) {
+        res <- x %>% 
+          str_split(";") %>% 
+          map_chr(function(y) {
+            paste0(y[1], " (", y[2], "): ", str_trunc(y[4], 40))
+          })
+        paste(res, collapse = "<br>")
+      })
+  }), 
+  # Newline in call name
+  call_type = fct_relabel(call_type, function(x) {
+    str_replace_all(x, "ERC", "ERC\n")
+  })
+  ) %>% 
+  # Hand over to ggplot
+  ggplot(aes(x = 1, 
+             y = fct_rev(call_type),
+             fill = had_snsf_grants_before)) +
+  geom_jitter(width = 0.5, height = 0.2, shape = 21, 
+              colour = "white", size = 2.5, stroke = 0.2) + 
+  get_datastory_theme(remove_plot_margin = TRUE) +
+  scale_x_continuous(breaks = seq(2007, 2020, 1)) +
+  scale_fill_manual(values = grant_avail_colors, 
+                    guide = guide_legend(ncol = 1)) +
+  labs(x = NULL, y = NULL) + 
+  theme(axis.text.y = element_text(hjust = 0.5))
+```
+</div>
+<div class="caption">
+ERC grants 2007-2019, data from June 2020 (CERN & Proof of Concept (PoC) excluded). SNSF grants 1998-2020 of project funding (incl. Sinergia and NRPs) and advanced career funding (Ambizione, SNSF professorships, Eccellenza, PRIMA).
+</div>
+</div>
+```{r share-by-grant-type-numbers}
+# Summarize data & plot it
+plot_data <- erc_grantees %>%
+  count(call_type, had_snsf_grants_before) %>%  
+  group_by(call_type) %>% 
+  mutate(freq = n / sum(n)) %>% 
+  ungroup()
+
+# Share of Starting grants with SNSF
+stg_with_snsf <- plot_data %>% 
+  filter(call_type == "StG", had_snsf_grants_before == TRUE) %>% 
+  pull(freq) * 100
+
+# Share of Consolidator grants with SNSF
+cog_with_snsf <- plot_data %>% 
+  filter(call_type == "CoG", had_snsf_grants_before == TRUE) %>% 
+  pull(freq) * 100
+
+# Share of Advanced grants with SNSF
+adg_with_snsf <- plot_data %>% 
+  filter(call_type == "AdG", had_snsf_grants_before == TRUE) %>% 
+  pull(freq) * 100
+
+# Share of Synergy grants with SNSF
+syg_with_snsf <- plot_data %>% 
+  filter(call_type == "SyG", had_snsf_grants_before == TRUE) %>% 
+  pull(freq) * 100
+
+```
+
+The ERC offers four types of grants (see previous box). For the Starting Grants, the proportion of researchers previously funded by the SNSF is `r round(stg_with_snsf)`%. This figure is even higher for the Consolidator Grants, at `r round(cog_with_snsf)`%. In the case of Advanced Grants for established researchers, almost all of them, namely `r round(adg_with_snsf)`%, were funded by the SNSF before their first ERC grant. For the `r erc_grantees %>% filter(call_type == "SyG") %>% nrow()` Synergy Grants, which account for only `r round(100 * (erc_grantees %>% filter(call_type == "SyG") %>% nrow() / erc_grantees %>% nrow()))`% of Swiss ERC grants, the figure was as high as `r round(syg_with_snsf)`%.
+
+<div class="plot-box">
+<div class="plot-title">Share of ERC grantees with or without prior SNSF funding</div>
+<div class="hide-mobile">
+```{r share-by-grant-type-desktop-tablet, out.width="100%", fig.height=2.5}
+# Create the plot
+p_numbers_per_type_and_year <- plot_data %>%   
+  # Labelling and order of ERC call types
+  format_call_types() %>% 
+  mutate(# Create nicer labels
+    had_snsf_grants_before = ifelse(had_snsf_grants_before, 
+                                    "With prior SNSF grant",
+                                    "Without prior SNSF grant"
+    )) %>%
+  ggplot(aes(
+    x = fct_rev(call_type),
+    y = freq,
+    tooltip = paste0(
+      "<b>", round(freq * 100),
+      "%</b> (", n, ") of the researchers with an ",
+      call_type, "<br> had ",
+      ifelse(
+        had_snsf_grants_before == "With prior SNSF grant",
+        "at least one prior SNSF grant",
+        "no prior SNSF grant"
+      ),
+      "."
+    )
+  )) +
+  # Hack: Add a geom_col under the interactive one, only to be able to provide
+  # correct looking legend items (round although bar chart), 
+  # geom_col_interactive does not take the argument 'key_glyph'
+  geom_col(aes(fill = had_snsf_grants_before), 
+           width = 0.1, size = 0.1,
+           # Draw point instead of square symbol
+           key_glyph = draw_key_dotplot
+  ) +
+  geom_col_interactive(aes(fill = fct_rev(had_snsf_grants_before)),
+                       color = "white", width = 0.7, size = 0.3,
+                       show.legend = FALSE) +
+  geom_text(aes(label = ifelse(freq >= 0.075,
+                               paste0(round(freq * 100), "%"), 
+                               "")), color = "white", size = 3.5, 
+            position = position_stack(vjust = 0.5), 
+            family = "Source Sans Pro") +
+  scale_y_continuous(labels = percent_format(accuracy = 1)) +
+  # guides(color = guide_legend(override.aes = list(size = 3))) +
+  # scale_color_manual(values = grant_avail_colors, 
+  #                    guide = guide_legend(reverse = TRUE)) +
+  scale_fill_manual(values = grant_avail_colors) +
+  labs(x = NULL, y = NULL) +
+  coord_flip() +
+  get_datastory_theme(title_axis = "x", tick_axis = "x") 
+
+# Create ggiraph object
+girafe(ggobj = p_numbers_per_type_and_year, 
+       height_svg = 2.5, 
+       options = list(
+         opts_toolbar(saveaspng = FALSE),
+         opts_hover(css = "fill:#F75858;stroke:#F75858;"),
+         opts_tooltip(
+           css = get_ggiraph_tooltip_css(),
+           opacity = 0.8,
+           delay_mouseover = 0,
+           delay_mouseout = 0
+         )
+       ))
+```
+</div>
+
+<div class="hide-tablet hide-desktop">
+```{r share-by-grant-type-mobile, out.width="100%", fig.height=3}
+p_numbers_per_type_and_year
+```
+
+</div>
+<div class="caption">
+ERC grants 2007-2019, data from June 2020 (CERN & Proof of Concept (PoC) excluded). SNSF grants 1998-2020 of project funding (incl. Sinergia and NRPs) and advanced career funding (Ambizione, SNSF professorships, Eccellenza, PRIMA).
+</div>
+</div>
+
+The ERC's grants are aimed at the best researchers worldwide. Our figures show that most of the ERC grantees conducting research in Switzerland have already been identified by the SNSF as promising and awarded funding.
+
+<div class='info-box'>
+
+### Data and methods
+
+__Data__
+
+* ERC grantees (at a Swiss institution)
+    + Data from June 2020 (CERN & Proof of Concept (PoC) excluded), <a href="https://erc.europa.eu/projects-figures/erc-funded-projects/" target="_blank">ERC Funded Projects Database</a>
+    + Starting Grants (StG), Consolidator Grants (CoG), Advanced Grants (AdG), Synergy Grants (SyG)
+    + Call years: 2007-2019 (not all funding schemes existed at all times)
+
+* SNSF grantees
+    + Data from June 2020, <a href="http://p3.snf.ch/Pages/DataAndDocumentation.aspx" target="_blank">SNSF P3</a>
+    + Project funding (incl. Sinergia and NRP) and advanced career funding (Ambizione, SNSF professorships, Eccellenza, PRIMA)
+    + Submission years: 1998-2020
+
+__Methods__
+
+* Comparison of ERC grantees with SNSF grantees.
+
+* ERC grantees are then assigned a previous SNSF grant if they have submitted a successful application (in one of the above-mentioned funding schemes) to the SNSF __before the first ERC grant__.
+
+* If researchers have received several ERC grants in the period under review, only the first ERC grant is taken into account. It is only of interest here whether the researchers and their research were identified as promising by the SNSF __before receiving__ the first ERC grant.
+</div>
